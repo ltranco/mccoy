@@ -10,12 +10,8 @@ import UIKit
 
 class ViewController: UIViewController {
     var answerLabel = UILabel();
-    var currentOperator = "";
-    var answer = 0.0;
-    var clearLabel = false;
     var boldedButton:UIButton = UIButton();
-    var previouslyOp = false;
-    var decimalPresent = false;
+    var finishCalc = false;
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -28,11 +24,11 @@ class ViewController: UIViewController {
         let buttonWidth = screenWidth / 4;
         let buttonHeight = screenHeight * 0.72 / 5;
         let buttonStart = screenHeight * 0.28;
-        let buttonTitles = ["AC", "+/-", "%", "÷",
-                            "7", "8", "9", "x",
+        let buttonTitles = ["Del", "(", ")", "÷",
+                            "7", "8", "9", "×",
                             "4", "5", "6", "-",
                             "1", "2", "3", "+",
-                            "0", " ", "·", "="];
+                            "0", "Clear", "·", "="];
         let darkGray:UIColor = UIColor(red:CGFloat(215.0/255.0),
                                        green:CGFloat(215.0/255.0),
                                        blue:CGFloat(215.0/255.0),
@@ -80,9 +76,6 @@ class ViewController: UIViewController {
                 else if(index < 3) {
                     button.backgroundColor = darkGray;
                 }
-                else if(buttonTitles[index] == "0") {
-                    button.frame = CGRectMake(currentX - buttonWidth, currentY, buttonWidth * 2, buttonHeight);
-                }
                 else if((index + 1) % 4 == 0) {
                     button.backgroundColor = lightOrange;
                     button.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal);
@@ -102,127 +95,128 @@ class ViewController: UIViewController {
         }
     }
     
-    func isOperator(op:String) -> Bool {
-        return op == "+" || op == "-" || op == "x" || op == "÷" ||
-            op == "AC" || op == "=" || op == "+/-" || op == "%";
-    }
-    
-    func truncate(str:String) -> String {
-        var result = str;
-        if(str.characters.count > 14) {
-            result = (result as NSString).substringToIndex(14);
-        }
-        return result;
-    }
-    
-    func solve(left:Double, op:String, right:Double) {
-        switch(op) {
-            case "+":
-                answer = Double(left + right);
-            case "-":
-                answer = Double(left - right);
-            case "x":
-                answer = Double(left * right);
-            case "÷":
-                answer =  Double(left) / Double(right);
-            default:
-                answer = 0.0;
-        }
-        if(answer % 1 == 0) {
-            answerLabel.text = truncate(String(Int(answer)));
-        }
-        else {
-            answerLabel.text = truncate(String(answer));
-        }
-    }
-    
-    func buttonAction(sender:UIButton!)
-    {
-        let buttonValue:String = (sender.titleLabel?.text)!;
-        var currentAnswer = answerLabel.text;
-        
+    func buttonAction(sender:UIButton!) {
+        var buttonValue:String = (sender.titleLabel?.text)!;
+        let currentAnswer = answerLabel.text;
+        let lastIndex = (currentAnswer?.characters.count)! - 1;
         
         boldedButton.layer.borderWidth = 0.5;
         
-        if(!isOperator(buttonValue)) {
-            if(clearLabel) {
+        if(!isSpecialOp(buttonValue)) {
+            //UI
+            sender.layer.borderWidth = 2;
+            boldedButton = sender;
+            
+            // If answer label is currently at starting state, reset it.
+            if(answerLabel.text == "0" && !isBasicOp(buttonValue)) {
                 answerLabel.text = "";
-                currentAnswer = "";
-                clearLabel = false;
             }
-            if(currentAnswer == "0" && buttonValue != "·") {
-                currentAnswer = "";
-            }
-            if(buttonValue == "·" && decimalPresent) {
+            
+            //If the previous key and current key are both operators, use the latter only
+            if(isBasicOp((currentAnswer! as NSString).substringFromIndex(lastIndex)) &&
+                isBasicOp(buttonValue)) {
+                let deleted = (answerLabel.text! as NSString).substringToIndex(lastIndex);
+                answerLabel.text = deleted + buttonValue;
                 return;
             }
+        
+            //If a calculation is finished and key pressed is not an operator, reset label to start new
+            if(finishCalc && !isBasicOp(buttonValue)) {
+                answerLabel.text = "";
+                finishCalc = false;
+            }
+            else if(finishCalc) {
+                finishCalc = false;
+            }
+            
+            //Check if decimal point or negate sign
             if(buttonValue == "·") {
-                answerLabel.text = truncate(currentAnswer! + ".");
+                buttonValue = ".";
             }
-            else {
-                answerLabel.text = truncate(currentAnswer! + buttonValue);
+            else if(buttonValue == "Clear") {
+                answerLabel.text = "0";
+                buttonValue = "";
             }
-            if(buttonValue == "·") {
-                decimalPresent = true;
-            }
-            else {
-                decimalPresent = false;
-            }
-            previouslyOp = false;
+            answerLabel.text = answerLabel.text! + buttonValue;
         }
         else {
-            decimalPresent = false;
             switch(buttonValue) {
-            case "AC":
-                answerLabel.text = "0";
-                answer = 0;
-                previouslyOp = false;
-                break;
-            case "+", "-", "x","÷":
-                sender.layer.borderWidth = 2;
-                boldedButton = sender;
-            
-                if(!previouslyOp) {
-                    if(answer != 0) {
-                        solve(answer, op: currentOperator, right: Double(currentAnswer!)!);
+                case "Del":
+                    let labelLength = answerLabel.text?.characters.count;
+                    var deleted = (answerLabel.text! as NSString).substringToIndex(labelLength! - 1);
+                    if(deleted == "") {
+                        deleted = "0";
                     }
-                    else {
-                        answer = Double(currentAnswer!)!;
-                    }
-                }
-                currentOperator = buttonValue;
-                previouslyOp = true;
-                clearLabel = true;
-                break;
-            case "+/-":
-                let negate = Double(currentAnswer!)! * -1;
-                if(negate % 1 == 0) {
-                    answerLabel.text = truncate(String(Int(negate)));
-                }
-                else {
-                    answerLabel.text = truncate(String(Double(negate)));
-                }
-                previouslyOp = false;
-            case "%":
-                solve(Double(currentAnswer!)!, op: "÷", right: 100);
-                previouslyOp = true;
-                break;
-            case "=":
-                solve(answer, op: currentOperator, right:Double(currentAnswer!)!);
-                clearLabel = true;
-                previouslyOp = false;
-                break;
-            default:
-                break;
+                    answerLabel.text = deleted;
+                    break;
+                case "=":
+                    let expr = NSExpression(format: sanitize(answerLabel.text!));
+                    answerLabel.text = String(evaluate(expr));
+                    finishCalc = true;
+                    break;
+                default:
+                    break;
             }
         }
+    }
+    
+    func sanitize(dirty:String) -> String {
+        //Replace with proper mul and div signs
+        var result = dirty.stringByReplacingOccurrencesOfString("÷", withString: "/");
+        result = result.stringByReplacingOccurrencesOfString("×", withString: "*");
         
+        //Parse each value as a double
+        let delimiters:String = "+-*/()";
+        let digits:String = "0123456789.";
+        
+        var onlyDigits = result.componentsSeparatedByCharactersInSet(NSCharacterSet(charactersInString: delimiters));
+        var onlyOperators = result.componentsSeparatedByCharactersInSet(NSCharacterSet(charactersInString: digits));
+        
+        onlyDigits = onlyDigits.filter({$0 != ""});
+        onlyOperators = onlyOperators.filter({$0 != ""});
+        
+        var finalResult = [String](count: onlyDigits.count + onlyOperators.count, repeatedValue: "");
+        
+        var digitIndex = 0;
+        var opIndex = 1;
+        
+        if(onlyOperators.first == "(") {
+            digitIndex = 1;
+            opIndex = 0;
+        }
+        
+        for i in 0 ... onlyDigits.count {
+            if(digitIndex < finalResult.count) {
+                finalResult[digitIndex] = String(Double(onlyDigits[i])!);
+                digitIndex = digitIndex + 2;
+            }
+        }
+        for i in 0 ... onlyDigits.count {
+            if(opIndex < finalResult.count) {
+                finalResult[opIndex] = String(UTF8String: onlyOperators[i])!;
+                opIndex = opIndex + 2;
+            }
+        }
+        return finalResult.joinWithSeparator("");
+    }
+    
+    func evaluate(expr:NSExpression) -> NSNumber{
+        return expr.expressionValueWithObject(nil, context: nil) as! NSNumber
+    }
+    
+    func isBasicOp(op:String) -> Bool {
+        return op == "+" || op == "-" || op == "×" || op == "÷";
+    }
+    
+    func isSpecialOp(op:String) -> Bool {
+        return op == "=" || op == "Del";
     }
     
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
     }
+    
     override func prefersStatusBarHidden() -> Bool {
         return true;
     }
